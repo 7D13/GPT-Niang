@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import readline from 'node:readline';
 import {createHash,randomUUID} from 'node:crypto';
 import {pluginVersion} from './metadata.mjs';
@@ -68,7 +68,7 @@ export function accountFingerprint(account) {
 
 // The desktop app replaces its hash-named CLI folder during updates. Resolve
 // the executable on every refresh rather than pinning the install-time path.
-export function resolveCodexExecutable(configuredPath,{env=process.env,platform=process.platform}={}) {
+export function resolveCodexExecutable(configuredPath,{env=process.env,platform=process.platform,execute=spawnSync}={}) {
   const isFile=file=>{try{return fs.statSync(file).isFile();}catch{return false;}};
   if(typeof configuredPath==='string' && isFile(configuredPath))return configuredPath;
   const executable=platform==='win32'?'codex.exe':'codex';
@@ -104,6 +104,22 @@ export function resolveCodexExecutable(configuredPath,{env=process.env,platform=
     if(!trimmed)continue;
     const file=path.join(trimmed,executable);
     if(isFile(file))return file;
+  }
+  // A scheduled task may have neither the desktop app's PATH nor its new package path.
+  const systemRoot=env.SystemRoot??env.WINDIR;
+  if(platform==='win32' && systemRoot && path.isAbsolute(systemRoot)){
+    const powershell=path.join(systemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
+    const command="[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); Get-AppxPackage -Name OpenAI.Codex | Sort-Object Version -Descending | Select-Object -ExpandProperty InstallLocation";
+    const result=execute(powershell,['-NoLogo','-NoProfile','-NonInteractive','-Command',command],{
+      encoding:'utf8',windowsHide:true,timeout:4000,
+    });
+    if(result.status===0){
+      for(const location of (result.stdout??'').split(/\r?\n/).map(line=>line.trim())){
+        if(!path.isAbsolute(location))continue;
+        const file=path.join(location,'app','resources',executable);
+        if(isFile(file))return file;
+      }
+    }
   }
   return configuredPath;
 }
