@@ -105,9 +105,10 @@ export function resolveCodexExecutable(configuredPath,{env=process.env,platform=
     const file=path.join(trimmed,executable);
     if(isFile(file))return file;
   }
-  // A scheduled task may have neither the desktop app's PATH nor its new package path.
+  // Recover a moved Store installation without substituting it for a different configured CLI.
   const systemRoot=env.SystemRoot??env.WINDIR;
-  if(platform==='win32' && systemRoot && path.isAbsolute(systemRoot)){
+  const storePath=!configuredPath || /[\\/]WindowsApps[\\/]OpenAI\.Codex_[^\\/]+[\\/]app[\\/]resources[\\/]codex\.exe$/i.test(configuredPath);
+  if(platform==='win32' && storePath && systemRoot && path.isAbsolute(systemRoot)){
     const powershell=path.join(systemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
     const command="[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); Get-AppxPackage -Name OpenAI.Codex | Sort-Object Version -Descending | Select-Object -ExpandProperty InstallLocation";
     const result=execute(powershell,['-NoLogo','-NoProfile','-NonInteractive','-Command',command],{

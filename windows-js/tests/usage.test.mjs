@@ -14,7 +14,8 @@ const individual=(overrides={})=>({limit:'4000',used:'2082.8820300102234',remain
 test('resolves the current Windows Store CLI when the saved package path is gone',t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'gpt-niang-store-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
-  const stale=path.join(root,'old','app','resources','codex.exe');
+  const oldPackage=path.join(root,'WindowsApps','OpenAI.Codex_old');
+  const stale=path.join(oldPackage,'app','resources','codex.exe');
   const current=path.join(root,'装有空格 new','app','resources','codex.exe');
   fs.mkdirSync(path.dirname(current),{recursive:true});
   fs.writeFileSync(current,'mock executable');
@@ -23,10 +24,12 @@ test('resolves the current Windows Store CLI when the saved package path is gone
     assert.equal(path.basename(file),'powershell.exe');
     assert.match(args.at(-1),/Get-AppxPackage -Name OpenAI\.Codex/);
     assert.equal(settings.timeout,4000);
-    return {status:0,stdout:path.join(root,'old')+'\r\n'+path.join(root,'装有空格 new')+'\r\n'};
+    return {status:0,stdout:oldPackage+'\r\n'+path.join(root,'装有空格 new')+'\r\n'};
   }}),current);
   assert.equal(resolveCodexExecutable(stale,{...options,execute:()=>({status:1,stdout:''})}),stale);
   assert.equal(resolveCodexExecutable(current,{...options,execute:()=>assert.fail('existing CLI needs no lookup')}),current);
+  const custom=path.join(root,'custom','codex.exe');
+  assert.equal(resolveCodexExecutable(custom,{...options,execute:()=>assert.fail('missing custom CLI needs no Store lookup')}),custom);
 });
 test('Business personal cap works without primary or secondary windows',()=>{
   const r=normalizeLimits({rateLimitsByLimitId:{codex:{planType:'business',primary:null,secondary:null,individualLimit:individual()}}},1000);
