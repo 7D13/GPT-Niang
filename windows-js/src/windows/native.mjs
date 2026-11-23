@@ -312,6 +312,10 @@ export class NativeWindows {
     if (this.topmost(h) !== topmost)
       u.pos(h, topmost ? -1 : -2, 0, 0, 0, 0, 0x13);
   }
+  placeBehind(window, front) {
+    if (this.previous(window) !== front)
+      u.pos(window, front, 0, 0, 0, 0, 0x13);
+  }
   desktopBand(h, topmost) {
     this.desktopRecovery??=new DesktopLayerRecovery();
     this.desktopRecovery.synchronize(this,h,topmost);

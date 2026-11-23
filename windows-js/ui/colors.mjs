@@ -73,14 +73,8 @@ export function applyColors(state) {
   shape.setAttribute("fill", full ? "url(#flow-surface)" : "#fff");
   for (const id of ["tail", "tail-near"]) {
     const tail = document.getElementById(id);
-    tail.style.borderColor = full ? "transparent" : "#745A98";
-    tail.style.background = full
-      ? gradient(roles.surface) +
-        " padding-box, " +
-        gradient(roles.accent) +
-        " border-box"
-      : "#fff";
-    tail.classList.toggle("flow-fill", full);
+    tail.style.stroke = full ? "url(#flow-accent)" : "#745A98";
+    tail.style.fill = full ? "url(#flow-surface)" : "#fff";
   }
   for (const node of document.querySelectorAll(
     "#quote,#header,#refresh,.row-left",

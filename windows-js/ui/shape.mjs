@@ -94,7 +94,7 @@ export class ShapePublisher {
     this.enabled = true;
   }
   build(state, image) {
-    const density = (innerWidth / 378) * devicePixelRatio,
+    const density = (innerHeight / 378) * devicePixelRatio,
       l = state.layout,
       sizes = {
         girl: [l.girl.width, l.girl.height],
@@ -110,6 +110,7 @@ export class ShapePublisher {
       image.naturalWidth,
       image.naturalHeight,
       image.dataset?.maskRevision,
+      l.figureMirror !== undefined,
     ]);
     if (signature === this.signature) return null;
     const resources = {};
@@ -169,15 +170,16 @@ export class ShapePublisher {
           dc.fill();
         }
       }
-      resources[name] = {
-        width: canvas.width,
-        height: canvas.height,
-        rects: alphaRectangles(
-          dc.getImageData(0, 0, canvas.width, canvas.height).data,
-          canvas.width,
-          canvas.height,
-        ),
-      };
+      const rects = alphaRectangles(
+        dc.getImageData(0, 0, canvas.width, canvas.height).data,
+        canvas.width,
+        canvas.height,
+      );
+      // Keep both silhouettes available so a flip can paint before the next native region update.
+      const mask = name === "girl" && l.figureMirror !== undefined
+        ? rects.concat(rects.map(([x1, y1, x2, y2]) => [canvas.width - x2, y1, canvas.width - x1, y2]))
+        : rects;
+      resources[name] = { width: canvas.width, height: canvas.height, rects: mask };
     }
     this.signature = signature;
     this.resources = resources;
@@ -199,7 +201,7 @@ export class ShapePublisher {
         r = element.getBoundingClientRect(),
         source = this.resources[name];
       if (!r.width || !r.height) continue;
-      const flip = state.layout.mirror < 0,
+      const flip = (name === "girl" || name === "bubble" ? state.layout.figureMirror ?? state.layout.mirror : state.layout.mirror) < 0,
         a = (r.width * devicePixelRatio) / source.width,
         d = (r.height * devicePixelRatio) / source.height,
         matrix = [

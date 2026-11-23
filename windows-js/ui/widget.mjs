@@ -59,6 +59,19 @@ function box(element, value) {
   for (const k of ["left", "top", "width", "height"])
     if (value[k] !== undefined) element.style[k] = value[k] + "px";
 }
+function boxTail(element, left, { top, width, height }) {
+  const [bounds, ellipse] = element.children;
+  bounds.setAttribute("x", left);
+  bounds.setAttribute("y", top);
+  bounds.setAttribute("width", width);
+  bounds.setAttribute("height", height);
+  ellipse.setAttribute("cx", left + width / 2);
+  ellipse.setAttribute("cy", top + height / 2);
+  const stroke = Math.min(3, width, height);
+  ellipse.setAttribute("stroke-width", stroke);
+  ellipse.setAttribute("rx", (width - stroke) / 2);
+  ellipse.setAttribute("ry", (height - stroke) / 2);
+}
 // The press easing can overshoot. Use the same limits for the visual pose and its window region.
 const pressLimits = [-0.25, 1.25];
 const pressScale = progress => [1 + 0.05 * progress, 1 - 0.12 * progress];
@@ -70,7 +83,7 @@ function applyPressPose() {
 }
 function updateWindowShape() {
   const press = pressRegionActive ? {
-    origin: [189 * innerWidth / 378 * devicePixelRatio, 364 * innerWidth / 378 * devicePixelRatio],
+    origin: [(189 + (state?.layout.desktopInset ?? 0)) * innerHeight / 378 * devicePixelRatio, 364 * innerHeight / 378 * devicePixelRatio],
     current: pressScale(pressProgress),
     limits: pressLimits.map(pressScale),
   } : null;
@@ -132,16 +145,11 @@ function bubbleTransition(open) {
   for (const [el, delay] of entries) {
     el.getAnimations().forEach((a) => a.cancel());
     if (open) el.style.visibility = "visible";
+    const keyframes = open
+      ? [{ opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1 }]
+      : [{ opacity: 1, scale: 1 }, { opacity: 0, scale: 0.7 }];
     const animation = el.animate(
-      open
-        ? [
-            { opacity: 0, scale: 0.7 },
-            { opacity: 1, scale: 1 },
-          ]
-        : [
-            { opacity: 1, scale: 1 },
-            { opacity: 0, scale: 0.7 },
-          ],
+      keyframes,
       {
         duration: open ? 200 : 180,
         delay,
@@ -319,20 +327,28 @@ function render(value) {
   };
   if (state && (state.settings.soundOn !== value.settings.soundOn ||
       state.settings.soundVolume !== value.settings.soundVolume)) clickSounds.stop({immediate:true});
-  if(pointer&&(value.temporary||value.blocked||!value.visible||(state&&state.music!==value.music)))cancelPointer();
+  if (pointer && (value.temporary || value.gestureBlocked || !value.visible || (state && state.music !== value.music))) cancelPointer();
   state = value;
   const l = value.layout;
   box(girlWrap, l.girl);
-  box($("tail"), l.tail);
-  box($("tail-near"), l.tailNear);
+  girlWrap.style.scale = (l.figureMirror ?? l.mirror) === l.mirror ? "" : "-1 1";
+  root.style.left = 14 + (l.desktopInset ?? 0) + "px";
+  const bubbleMirror = l.figureMirror ?? l.mirror;
+  const flipBubble = bubbleMirror !== l.mirror;
+  const pivot = 2 * l.girl.left + l.girl.width;
+  const bubbleLeft = (left, width) => flipBubble ? pivot - left - width : left;
+  boxTail($("tail"), bubbleLeft(l.tail.left, l.tail.width), l.tail);
+  boxTail($("tail-near"), bubbleLeft(l.tailNear.left, l.tailNear.width), l.tailNear);
   box(menu, l.menu);
   // Apply steady sizing during layout so text can be rasterized at its final size.
   const bubbleZoom = l.bubble.scale;
-  box(bubble, { left: l.bubble.left / bubbleZoom, top: l.bubble.top / bubbleZoom });
+  box(bubble, { left: bubbleLeft(l.bubble.left, 350 * bubbleZoom) / bubbleZoom, top: l.bubble.top / bubbleZoom });
+  bubble.style.transformOrigin = "center";
+  bubble.style.transform = flipBubble ? "scaleX(-1)" : "";
   bubble.style.zoom = bubbleZoom === 1 ? "" : String(bubbleZoom);
-  stage.style.zoom = String(window.innerWidth / 378);
+  stage.style.zoom = String(window.innerHeight / 378);
   applyPressPose();
-  scene.style.transform = l.mirror === 1 ? "" : "scaleX(-1)";
+  scene.style.transform = bubbleMirror === 1 ? "" : "scaleX(-1)";
   menu.style.transform = `scaleX(${l.mirror})`;
   menu.classList.toggle("hidden", value.settings.hideMenu);
   document.body.classList.toggle("temporary", value.temporary);
@@ -421,7 +437,7 @@ function girlHit(x, y) {
     height = girl.clientHeight,
     fit = Math.min(width / alpha.width, height / alpha.height);
   let localX = (x - rect.left)*width/rect.width;
-  if (state.layout.mirror < 0) localX = width - localX;
+  if ((state.layout.figureMirror ?? state.layout.mirror) < 0) localX = width - localX;
   const px = Math.floor((localX - (width - alpha.width * fit) / 2) / fit),
     py = Math.floor(((y - rect.top)*height/rect.height - (height - alpha.height * fit) / 2) / fit);
   return (
@@ -440,7 +456,7 @@ function bubbleHit(x, y) {
   if (
     hitContext.isPointInPath(
       bubblePath,
-      state.layout.mirror < 0 ? 350 - localX : localX,
+      (state.layout.figureMirror ?? state.layout.mirror) < 0 ? 350 - localX : localX,
       localY,
     )
   )
@@ -753,7 +769,7 @@ window.gpt.onGeometry((value) => {
   else state={...state,...value,image:null};
 });
 window.addEventListener("resize", () => {
-  stage.style.zoom = String(window.innerWidth / 378);
+  stage.style.zoom = String(window.innerHeight / 378);
 });
 window.gpt.onAudio((value) => {
   if (value.preview) play(value.preview, true);

@@ -136,13 +136,17 @@ button:hover {
   line-height: 15px;
   color: #7d6b91;
 }
-.tail {
-  display: block;
-  border: 3px solid #745a98;
-  background: #fff;
-  border-radius: 50%;
-  transform-origin: 50% 50%;
+#bubble-tails {
+  left: 0;
+  top: 0;
+  overflow: visible;
   pointer-events: none;
+}
+.tail {
+  fill: #fff;
+  stroke: #745a98;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
 }
 #girl-wrap {
   cursor: pointer;

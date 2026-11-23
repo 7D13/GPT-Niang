@@ -47,8 +47,11 @@
             </div>
           </div>
         </div>
-        <i id="tail" class="tail"></i><i id="tail-near" class="tail"></i
-        ><canvas id="under" width="700" height="700"></canvas>
+        <svg id="bubble-tails" width="350" height="350" aria-hidden="true">
+          <g id="tail" class="tail"><rect fill="transparent" stroke="none"/><ellipse/></g>
+          <g id="tail-near" class="tail"><rect fill="transparent" stroke="none"/><ellipse/></g>
+        </svg>
+        <canvas id="under" width="700" height="700"></canvas>
         <div id="girl-wrap">
           <img
             id="girl"

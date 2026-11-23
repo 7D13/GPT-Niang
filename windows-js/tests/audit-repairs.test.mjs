@@ -38,7 +38,7 @@ test('GUI reuses a live headless worker and backs off failed restarts',async t=>
 test('desktop music geometry uses the widget DPI instead of the Codex monitor DPI',()=>{
   const code=fs.readFileSync(path.join(app,'src/main.mjs'),'utf8'),start=code.indexOf('  function geometry()'),end=code.indexOf('  function snapshot(',start);
   assert.ok(start>=0&&end>start);
-  const context={effectiveLayout:()=>({}),frame:null,lastNormal:null,host:42,handle:7,preview:false,settings:{followHost:false},native:{rect:()=>({}),dpi:h=>h===42?1.5:1}};
+  const context={effectiveLayout:()=>({}),frame:null,lastNormal:null,host:42,handle:7,preview:false,music:true,settings:{followHost:false},native:{rect:()=>({}),dpi:h=>h===42?1.5:1}};
   vm.createContext(context);vm.runInContext(code.slice(start,end),context);
   assert.equal(context.geometry().dpi,1);context.settings.followHost=true;assert.equal(context.geometry().dpi,1.5);
 });
@@ -48,9 +48,25 @@ test('changing audio settings stops an active preview',()=>{
   let stops=0,starts=0;const element=()=>({style:{},classList:{toggle(){}},getAnimations:()=>[],animate(){},getContext:()=>({clearRect(){}})}),els=new Map();
   const c={ClickSequence,source:null,audioContext:{state:'running',destination:{},createBufferSource:()=>({connect:()=>({connect(){}}),start(){starts++},stop(){stops++}}),createGain:()=>({gain:{value:0}})},soundBuffers:{'preview-press':{duration:5}},state:{settings:{soundOn:true,soundVolume:1},layout:{girl:{},tail:{},tailNear:{},menu:{},bubble:{scale:1},mirror:1},scene:{collapsed:false,preview:false,revision:0,mode:'quote',text:'fixture'},colors:{paused:false},music:false},performance,setTimeout,clearTimeout,box(){},$:id=>{if(!els.has(id))els.set(id,element());return els.get(id);},girlWrap:element(),menu:element(),bubble:element(),stage:element(),scene:element(),quote:element(),bubbleAnimation:element(),window:{innerWidth:378},document:{body:element()},applyPressPose(){},applyColors(){},lastCollapsed:false,lastPreview:false,lastRevision:0,lastMusic:false,motion:null,bounds:null};
   c.pointer=null;
+  c.root=element();
+  c.boxTail=()=>{};
+  c.window.innerHeight=378;
   c.window.addEventListener=()=>{};c.clipPlayer=new ClipPlayer({context:()=>c.audioContext});
   vm.createContext(c);vm.runInContext(slice('const usingBuiltInAudio =','function play(')+'\nglobalThis.sequence=clickSounds;\n'+slice('function render(value) {','function girlHit('),c);
   c.sequence.preview('press');const before=stops;c.render({settings:{soundOn:false,soundVolume:0}});assert.equal(starts,1);assert.equal(stops-before,1);c.sequence.preview('press');assert.equal(starts,1);
+});
+
+test('ordinary settings menu updates preserve an active gesture',()=>{
+  const code=fs.readFileSync(path.join(app,'ui/widget.mjs'),'utf8');
+  const rule=code.split('\n').find(line=>line.includes('value.gestureBlocked'));
+  assert.ok(rule);
+  let cancellations=0;
+  const context={pointer:{},state:{music:false},value:{visible:true,music:false,blocked:true,gestureBlocked:false},cancelPointer(){cancellations++;}};
+  vm.runInNewContext(rule,context);
+  assert.equal(cancellations,0);
+  context.value.gestureBlocked=true;
+  vm.runInNewContext(rule,context);
+  assert.equal(cancellations,1);
 });
 
 test('importing or removing the active character exits music mode',async()=>{

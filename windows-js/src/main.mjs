@@ -129,6 +129,7 @@ async function run() {
     blocked = false,
     sizePreview = false,
     drag = null,
+    desktopWindowPad = 0,
     music = false,
     musicColor = false,
     musicOffset = null,
@@ -378,8 +379,17 @@ async function run() {
     return value;
   }
   function geometry() {
+    const layout = effectiveLayout(), position = native.rect(handle);
+    if (!settings.followHost && !music && !preview && frame && position) {
+      const g = layout.girl;
+      const center = layout.mirror < 0 ? 350 - g.left - g.width / 2 : g.left + g.width / 2;
+      const dpi = native.dpi(handle);
+      const screenX = position.left + desktopWindowPad + (14 + center) * layout.display * dpi;
+      layout.desktopInset = desktopWindowPad / (layout.display * dpi);
+      layout.figureMirror = screenX < (frame.left + frame.right) / 2 ? -1 : 1;
+    }
     return {
-      layout: effectiveLayout(),
+      layout,
       frame: frame
         ? {
             width: frame.right - frame.left,
@@ -389,7 +399,7 @@ async function run() {
           }
         : null,
       normal: lastNormal,
-      position: native.rect(handle),
+      position,
       dpi: settings.followHost && host && !preview ? native.dpi(host) : native.dpi(handle),
     };
   }
@@ -417,6 +427,7 @@ async function run() {
       musicStatus,
       temporary: !!temporary,
       blocked,
+      gestureBlocked: !!editor || openingEditor || dialogBusy,
       candidate,
     };
   }
@@ -594,7 +605,10 @@ async function run() {
     if ((!drag || drag.music) && !temporary) {
       const x = music && musicOffset ? frame.left + musicOffset.x : p.x,
         y = music && musicOffset ? frame.top + musicOffset.y : p.y;
-      if (native.move(handle, { x, y, width: p.size, height: p.size }))
+      const g = effectiveLayout().girl;
+      desktopWindowPad = !follow && !music && !preview
+        ? Math.ceil(Math.abs(2 * g.left + g.width - 350) * p.size / 378) : 0;
+      if (native.move(handle, { x: x - desktopWindowPad, y, width: p.size + 2 * desktopWindowPad, height: p.size }))
         metrics.positionChanges++;
     }
     if (follow && !temporary) {
@@ -638,6 +652,7 @@ async function run() {
       }
       lamp.showInactive();
       if (follow) native.above(handle, host, lampHandle);
+      else native.placeBehind(lampHandle, handle);
       if (Date.now() - (sync.lastLamp ?? 0) >= 1000 / 30) {
         sync.lastLamp = Date.now();
         lamp.webContents.send("lamp", {
@@ -963,7 +978,7 @@ async function run() {
       button = l.menu;
     const anchor = screen.screenToDipPoint({
       x: Math.round(
-        r.left +
+        r.left + desktopWindowPad +
           (14 +
             (l.mirror < 0 ? 350 - button.left - button.width : button.left)) *
             l.display *
@@ -1200,11 +1215,14 @@ async function run() {
       : native.cursor();
     if (!cursor) return;
     if (value.op === "arm") {
+      if (editor || openingEditor || dialogBusy) return;
       if (scene.mode === "completion") {
         dismissCompletion();
         scene.hide();
       }
-      drag = { cursor, rect: native.rect(handle), moved: false, music };
+      const rect = native.rect(handle);
+      rect.left += desktopWindowPad;
+      drag = { cursor, rect, moved: false, music };
       resetSchedule();
       if (music) {
         win.webContents.send('pointer-position',{id:value.id,cursor,start:true});
@@ -1225,7 +1243,7 @@ async function run() {
       const follow = settings.followHost && !preview,
         dpi = follow ? native.dpi(host) : native.dpi(handle),
         nextSide = cursor.x < (frame.left + frame.right) / 2 ? "left" : "right";
-      if (nextSide !== settings.side) {
+      if (follow && nextSide !== settings.side) {
         const g = layout(settings).girl,
           delta = (2 * g.left + g.width - 350) * layout(settings).display * dpi,
           shift = settings.side === "right" ? delta : -delta;
@@ -1239,7 +1257,7 @@ async function run() {
         x,
         y,
         dpi,
-        cursor.x,
+        follow ? cursor.x : (settings.side === "left" ? frame.left : frame.right),
         effectiveLayout().display,
       );
       if (follow) {
@@ -1254,7 +1272,7 @@ async function run() {
         };
       scene.settings = settings;
       colors.settings = settings;
-      native.move(handle, { x: next.x, y: next.y });
+      native.move(handle, { x: next.x - desktopWindowPad, y: next.y });
       send();
     } else if (value.op === "end" || value.op === "cancel") {
       if (!drag) return;
